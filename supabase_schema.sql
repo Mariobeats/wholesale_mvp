@@ -213,3 +213,31 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- 7. PAYMENTS TABLE (Party Khata / Payment Collection)
+CREATE TABLE IF NOT EXISTS public.payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  party_id UUID NOT NULL REFERENCES public.parties(id) ON DELETE CASCADE,
+  salesman_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  amount NUMERIC(10, 2) NOT NULL CHECK (amount > 0),
+  payment_mode TEXT NOT NULL CHECK (payment_mode IN ('cash', 'upi', 'cheque', 'bank_transfer')),
+  reference_no TEXT,
+  remarks TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PAYMENTS SECURITY POLICIES
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Payments select policy" ON public.payments 
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Payments insert policy" ON public.payments 
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Payments admin update policy" ON public.payments 
+  FOR UPDATE USING (public.is_admin());
+
+CREATE POLICY "Payments admin delete policy" ON public.payments 
+  FOR DELETE USING (public.is_admin());
+
+

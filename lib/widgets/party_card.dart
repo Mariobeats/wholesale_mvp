@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../models/party_model.dart';
+import '../screens/parties/party_ledger_screen.dart';
+import 'collect_payment_dialog.dart';
 
 class PartyCard extends StatelessWidget {
   final PartyModel party;
@@ -153,6 +155,49 @@ class PartyCard extends StatelessWidget {
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (!isSelected) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (ctx) => PartyLedgerScreen(party: party),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.menu_book_rounded, size: 16),
+                        label: const Text('Khata Passbook', style: TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          foregroundColor: AppColors.primary,
+                          side: const BorderSide(color: AppColors.primary),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          CollectPaymentDialog.show(context, party);
+                        },
+                        icon: const Icon(Icons.currency_rupee_rounded, size: 16, color: Colors.white),
+                        label: const Text('Collect Pay', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          backgroundColor: AppColors.success,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
                       ),
                     ),
                   ],

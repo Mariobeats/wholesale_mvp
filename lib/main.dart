@@ -6,6 +6,7 @@ import 'providers/cart_provider.dart';
 import 'providers/order_provider.dart';
 import 'providers/party_provider.dart';
 import 'providers/product_provider.dart';
+import 'providers/payment_provider.dart';
 import 'screens/splash_screen.dart';
 import 'services/supabase_service.dart';
 
@@ -27,6 +28,7 @@ class WholesaleApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PartyProvider()),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider(create: (_) => PaymentProvider()),
       ],
       child: MaterialApp(
         title: 'Wholesale Order Management',
