@@ -108,17 +108,25 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
 
       Position? position;
       try {
-        position = await Geolocator.getLastKnownPosition();
+        // Prioritize live, high-accuracy GPS position
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 10),
+          ),
+        );
       } catch (e) {
-        debugPrint('getLastKnownPosition error: $e');
+        debugPrint('getCurrentPosition failed, attempting last known cached position: $e');
+        try {
+          position = await Geolocator.getLastKnownPosition();
+        } catch (err) {
+          debugPrint('getLastKnownPosition error: $err');
+        }
       }
 
-      position ??= await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 12),
-        ),
-      );
+      if (position == null) {
+        throw Exception('Could not obtain live or cached GPS position.');
+      }
 
       setState(() {
         _currentPosition = position;
