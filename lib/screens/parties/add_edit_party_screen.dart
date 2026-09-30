@@ -13,6 +13,7 @@ import '../../services/location_service.dart';
 import '../../services/map_launcher_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
+import 'map_picker_screen.dart';
 
 class AddEditPartyScreen extends StatefulWidget {
   final PartyModel? party;
@@ -201,6 +202,49 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openMapPicker() async {
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final capture = locationProvider.currentCapture;
+
+    final initialLat = capture?.latitude ?? widget.party?.latitude ?? 22.719642;
+    final initialLng = capture?.longitude ?? widget.party?.longitude ?? 75.857712;
+
+    final LocationPickerResult? result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (ctx) => MapPickerScreen(
+          initialLat: initialLat,
+          initialLng: initialLng,
+          initialAccuracy: capture?.accuracy ?? widget.party?.gpsAccuracy ?? 5.0,
+        ),
+      ),
+    );
+
+    if (result != null) {
+      locationProvider.setManualLocation(
+        latitude: result.latitude,
+        longitude: result.longitude,
+        accuracy: result.accuracy,
+        source: 'map_selected',
+      );
+
+      if (result.address != null && result.address!.isNotEmpty) {
+        if (_addressController.text.trim().isEmpty) {
+          _addressController.text = result.address!;
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Shop location updated from Map Pin!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _saveParty() async {
@@ -497,8 +541,20 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
+                ElevatedButton.icon(
+                  onPressed: _openMapPicker,
+                  icon: const Icon(Icons.edit_location_alt_rounded, size: 14),
+                  label: const Text('Adjust Pin on Map', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                ),
                 OutlinedButton.icon(
                   onPressed: () {
                     MapLauncherService.openMap(
@@ -509,13 +565,12 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
                     );
                   },
                   icon: const Icon(Icons.map_rounded, size: 14),
-                  label: const Text('View on Map', style: TextStyle(fontSize: 11)),
+                  label: const Text('External Map', style: TextStyle(fontSize: 11)),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     side: const BorderSide(color: AppColors.primary),
                   ),
                 ),
-                const SizedBox(width: 8),
                 TextButton.icon(
                   onPressed: _fetchCompulsoryLocation,
                   icon: const Icon(Icons.refresh_rounded, size: 14),

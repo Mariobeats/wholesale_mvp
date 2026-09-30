@@ -89,6 +89,23 @@ class LocationProvider with ChangeNotifier {
     }
   }
 
+  void setManualLocation({
+    required double latitude,
+    required double longitude,
+    double accuracy = 5.0,
+    String source = 'map_selected',
+  }) {
+    _currentCapture = LocationCaptureModel(
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: accuracy,
+      capturedAt: DateTime.now(),
+      source: source,
+    );
+    _error = null;
+    notifyListeners();
+  }
+
   void setCurrentCapture(LocationCaptureModel capture) {
     _currentCapture = capture;
     notifyListeners();
