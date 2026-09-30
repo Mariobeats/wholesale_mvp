@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../core/constants/app_colors.dart';
 import '../models/party_model.dart';
 import '../providers/location_provider.dart';
+import '../services/map_launcher_service.dart';
 
 class ShopVerificationCard extends StatelessWidget {
   final PartyModel party;
@@ -73,13 +73,13 @@ class ShopVerificationCard extends StatelessWidget {
                   ],
                 ),
                 TextButton.icon(
-                  onPressed: () async {
-                    final Uri mapsUri = Uri.parse(
-                      'https://www.google.com/maps/search/?api=1&query=${party.latitude},${party.longitude}',
+                  onPressed: () {
+                    MapLauncherService.openMap(
+                      context,
+                      party.latitude!,
+                      party.longitude!,
+                      title: party.shopName,
                     );
-                    if (await canLaunchUrl(mapsUri)) {
-                      await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
-                    }
                   },
                   icon: const Icon(Icons.map_rounded, size: 14),
                   label: const Text('Open Map', style: TextStyle(fontSize: 11)),

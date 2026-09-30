@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/party_model.dart';
 import '../../models/location_capture.dart';
 import '../../providers/party_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../services/location_service.dart';
+import '../../services/map_launcher_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 
@@ -500,11 +500,13 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
             Row(
               children: [
                 OutlinedButton.icon(
-                  onPressed: () async {
-                    final Uri mapsUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${capture.latitude},${capture.longitude}');
-                    if (await canLaunchUrl(mapsUri)) {
-                      await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
-                    }
+                  onPressed: () {
+                    MapLauncherService.openMap(
+                      context,
+                      capture.latitude,
+                      capture.longitude,
+                      title: _shopNameController.text.trim(),
+                    );
                   },
                   icon: const Icon(Icons.map_rounded, size: 14),
                   label: const Text('View on Map', style: TextStyle(fontSize: 11)),

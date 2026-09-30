@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../core/constants/app_colors.dart';
 import '../models/party_model.dart';
 import '../screens/parties/party_ledger_screen.dart';
+import '../services/map_launcher_service.dart';
 import 'collect_payment_dialog.dart';
 
 class PartyCard extends StatelessWidget {
@@ -147,11 +147,13 @@ class PartyCard extends StatelessWidget {
               if (party.latitude != null && party.longitude != null) ...[
                 const SizedBox(height: 6),
                 InkWell(
-                  onTap: () async {
-                    final Uri mapsUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${party.latitude},${party.longitude}');
-                    if (await canLaunchUrl(mapsUri)) {
-                      await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
-                    }
+                  onTap: () {
+                    MapLauncherService.openMap(
+                      context,
+                      party.latitude!,
+                      party.longitude!,
+                      title: party.shopName,
+                    );
                   },
                   borderRadius: BorderRadius.circular(6),
                   child: Padding(
