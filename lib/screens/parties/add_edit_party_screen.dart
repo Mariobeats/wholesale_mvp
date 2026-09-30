@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/party_model.dart';
 import '../../providers/party_provider.dart';
@@ -371,22 +372,33 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                _currentPosition != null
-                                    ? 'GPS Location Captured (Compulsory)'
-                                    : 'GPS Location Required (Compulsory)',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: _currentPosition != null ? AppColors.success : AppColors.error,
-                                ),
+                              Row(
+                                children: [
+                                  Text(
+                                    _currentPosition != null
+                                        ? 'GPS Pinpoint Captured (Compulsory)'
+                                        : 'GPS Location Required (Compulsory)',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: _currentPosition != null ? AppColors.success : AppColors.error,
+                                    ),
+                                  ),
+                                  if (_currentPosition != null && _currentPosition!.accuracy > 0) ...[
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '(±${_currentPosition!.accuracy.toStringAsFixed(1)}m)',
+                                      style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ],
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 _isFetchingLocation
                                     ? 'Fetching GPS & Auto-filling Address...'
                                     : _currentPosition != null
-                                        ? 'Lat: ${_currentPosition!.latitude.toStringAsFixed(5)}, Long: ${_currentPosition!.longitude.toStringAsFixed(5)}'
+                                        ? 'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}, Long: ${_currentPosition!.longitude.toStringAsFixed(6)}'
                                         : (_locationError ?? 'Turn ON GPS Location on your phone to add party.'),
                                 style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                               ),
@@ -399,13 +411,26 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        else
+                        else ...[
+                          if (_currentPosition != null)
+                            IconButton(
+                              icon: const Icon(Icons.map_rounded, size: 20),
+                              color: AppColors.primary,
+                              tooltip: 'Verify on Google Maps',
+                              onPressed: () async {
+                                final Uri mapsUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${_currentPosition!.latitude},${_currentPosition!.longitude}');
+                                if (await canLaunchUrl(mapsUri)) {
+                                  await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
+                                }
+                              },
+                            ),
                           IconButton(
                             icon: const Icon(Icons.refresh_rounded, size: 20),
                             color: AppColors.primary,
                             tooltip: 'Refresh GPS & Auto Address',
                             onPressed: _fetchCompulsoryLocation,
                           ),
+                        ],
                       ],
                     ),
                   ),

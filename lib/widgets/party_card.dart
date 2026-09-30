@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/constants/app_colors.dart';
 import '../models/party_model.dart';
 import '../screens/parties/party_ledger_screen.dart';
@@ -145,19 +146,39 @@ class PartyCard extends StatelessWidget {
               ],
               if (party.latitude != null && party.longitude != null) ...[
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(Icons.my_location_rounded, size: 13, color: AppColors.success),
-                    const SizedBox(width: 6),
-                    Text(
-                      'GPS Verified: ${party.latitude!.toStringAsFixed(4)}, ${party.longitude!.toStringAsFixed(4)}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.success,
-                      ),
+                InkWell(
+                  onTap: () async {
+                    final Uri mapsUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${party.latitude},${party.longitude}');
+                    if (await canLaunchUrl(mapsUri)) {
+                      await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2.0),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.my_location_rounded, size: 13, color: AppColors.success),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'GPS Pin: ${party.latitude!.toStringAsFixed(6)}, ${party.longitude!.toStringAsFixed(6)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.success,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.map_rounded, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 2),
+                        const Text(
+                          'Open Map',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ],
               if (!isSelected) ...[
