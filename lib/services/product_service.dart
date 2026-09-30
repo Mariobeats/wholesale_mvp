@@ -57,12 +57,13 @@ class ProductService {
           .order('created_at', ascending: false);
 
       final List<dynamic> data = response as List<dynamic>;
-      if (data.isEmpty) {
-        return List.from(_demoProducts);
-      }
       return data.map((json) => ProductModel.fromJson(json)).toList();
     } catch (e) {
-      debugPrint('ProductService getProducts fallback: $e');
+      debugPrint('ProductService getProducts error: $e');
+      if (_supabaseService.isInitialized && 
+          SupabaseService().client.auth.currentSession != null) {
+        return [];
+      }
       return List.from(_demoProducts);
     }
   }

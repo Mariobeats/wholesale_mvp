@@ -45,12 +45,13 @@ class PartyService {
           .order('created_at', ascending: false);
 
       final List<dynamic> data = response as List<dynamic>;
-      if (data.isEmpty) {
-        return List.from(_demoParties);
-      }
       return data.map((json) => PartyModel.fromJson(json)).toList();
     } catch (e) {
-      debugPrint('PartyService getParties fallback: $e');
+      debugPrint('PartyService getParties error: $e');
+      if (_supabaseService.isInitialized && 
+          SupabaseService().client.auth.currentSession != null) {
+        return [];
+      }
       return List.from(_demoParties);
     }
   }

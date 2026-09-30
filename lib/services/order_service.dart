@@ -59,12 +59,13 @@ class OrderService {
           .order('created_at', ascending: false);
 
       final List<dynamic> data = response as List<dynamic>;
-      if (data.isEmpty) {
-        return List.from(_demoOrders);
-      }
       return data.map((json) => OrderModel.fromJson(json)).toList();
     } catch (e) {
-      debugPrint('OrderService getOrders fallback: $e');
+      debugPrint('OrderService getOrders error: $e');
+      if (_supabaseService.isInitialized && 
+          SupabaseService().client.auth.currentSession != null) {
+        return [];
+      }
       return List.from(_demoOrders);
     }
   }
