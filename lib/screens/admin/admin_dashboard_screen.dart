@@ -46,13 +46,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            const Text('Admin Dashboard'),
-            Text(
-              'Welcome, ${user?.name ?? 'Admin'}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Colors.white70),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset('assets/images/logo.png', fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('VyaparSetu Admin', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(
+                  'Welcome, ${user?.name ?? 'Admin'}',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w400, color: Colors.white70),
+                ),
+              ],
             ),
           ],
         ),
