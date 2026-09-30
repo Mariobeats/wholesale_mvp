@@ -172,7 +172,7 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
   Future<void> _fetchAddressFromCoordinates(double lat, double lng) async {
     try {
       final url = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng');
-      final response = await http.get(url, headers: {'User-Agent': 'WholesaleApp/1.0'});
+      final response = await http.get(url, headers: {'User-Agent': 'VyaparSetuApp/1.0'});
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final displayName = data['display_name'] as String?;

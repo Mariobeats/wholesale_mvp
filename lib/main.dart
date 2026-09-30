@@ -13,11 +13,11 @@ import 'services/supabase_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseService().initialize();
-  runApp(const WholesaleApp());
+  runApp(const VyaparSetuApp());
 }
 
-class WholesaleApp extends StatelessWidget {
-  const WholesaleApp({super.key});
+class VyaparSetuApp extends StatelessWidget {
+  const VyaparSetuApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +31,7 @@ class WholesaleApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PaymentProvider()),
       ],
       child: MaterialApp(
-        title: 'Wholesale Order Management',
+        title: 'VyaparSetu',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         home: const SplashScreen(),

@@ -48,37 +48,55 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: AppColors.primary,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.inventory_2_rounded,
-              size: 80,
-              color: Colors.white,
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
             ),
-            SizedBox(height: 24),
-            Text(
-              'Wholesale Order Management',
+            const SizedBox(height: 24),
+            const Text(
+              'VyaparSetu',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
-                letterSpacing: 0.5,
+                letterSpacing: 0.8,
               ),
             ),
-            SizedBox(height: 8),
-            Text(
-              'Efficient Wholesale Operations',
+            const SizedBox(height: 6),
+            const Text(
+              'B2B Wholesale & Distribution Platform',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 color: Colors.white70,
+                letterSpacing: 0.3,
               ),
             ),
-            SizedBox(height: 48),
-            CircularProgressIndicator(
+            const SizedBox(height: 48),
+            const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ],
