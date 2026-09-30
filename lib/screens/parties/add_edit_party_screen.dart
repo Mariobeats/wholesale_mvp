@@ -108,24 +108,36 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
 
       Position? position;
       try {
-        // Prioritize live, high-accuracy GPS position
+        // Level 1: Try Live High Accuracy GPS (20 sec timeout)
         position = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 10),
+            timeLimit: Duration(seconds: 20),
           ),
         );
       } catch (e) {
-        debugPrint('getCurrentPosition failed, attempting last known cached position: $e');
+        debugPrint('High accuracy GPS timed out/failed: $e. Trying medium accuracy...');
         try {
-          position = await Geolocator.getLastKnownPosition();
-        } catch (err) {
-          debugPrint('getLastKnownPosition error: $err');
+          // Level 2: Fallback to Medium Accuracy (Cellular/Wi-Fi triangulation)
+          position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+              timeLimit: Duration(seconds: 10),
+            ),
+          );
+        } catch (e2) {
+          debugPrint('Medium accuracy location failed: $e2. Trying last known cached position...');
+          try {
+            // Level 3: Fallback to Last Known Cached Position
+            position = await Geolocator.getLastKnownPosition();
+          } catch (err) {
+            debugPrint('getLastKnownPosition error: $err');
+          }
         }
       }
 
       if (position == null) {
-        throw Exception('Could not obtain live or cached GPS position.');
+        throw Exception('Could not obtain GPS position. Please ensure GPS is ON and move outdoors.');
       }
 
       setState(() {
@@ -134,8 +146,10 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
         _isFetchingLocation = false;
       });
 
-      // Auto-fetch human readable address from GPS coordinates
-      await _fetchAddressFromCoordinates(position.latitude, position.longitude);
+      // Auto-fetch human readable address if address is currently blank
+      if (_addressController.text.trim().isEmpty) {
+        await _fetchAddressFromCoordinates(position.latitude, position.longitude);
+      }
     } catch (e) {
       debugPrint('GPS Location error: $e');
       if (kIsWeb) {
@@ -159,10 +173,12 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
           _isFetchingLocation = false;
         });
 
-        await _fetchAddressFromCoordinates(fallbackPosition.latitude, fallbackPosition.longitude);
+        if (_addressController.text.trim().isEmpty) {
+          await _fetchAddressFromCoordinates(fallbackPosition.latitude, fallbackPosition.longitude);
+        }
       } else {
         setState(() {
-          _locationError = 'Could not get real GPS location. Turn ON GPS or move outdoors.';
+          _locationError = 'GPS Signal weak or timed out. Turn ON GPS, move outdoors & tap Refresh 🔄';
           _isFetchingLocation = false;
         });
       }
@@ -171,15 +187,32 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
 
   Future<void> _fetchAddressFromCoordinates(double lat, double lng) async {
     try {
-      final url = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng');
+      final url = Uri.parse('https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng&zoom=18&addressdetails=1');
       final response = await http.get(url, headers: {'User-Agent': 'VyaparSetuApp/1.0'});
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final displayName = data['display_name'] as String?;
-        if (displayName != null && displayName.isNotEmpty) {
-          if (!mounted) return;
+        final addressObj = data['address'] as Map<String, dynamic>?;
+
+        String formattedAddress = '';
+        if (addressObj != null) {
+          final parts = <String>[];
+          if (addressObj['shop'] != null) parts.add(addressObj['shop'].toString());
+          if (addressObj['building'] != null) parts.add(addressObj['building'].toString());
+          if (addressObj['road'] != null) parts.add(addressObj['road'].toString());
+          if (addressObj['suburb'] != null) parts.add(addressObj['suburb'].toString());
+          final city = addressObj['city'] ?? addressObj['town'] ?? addressObj['village'];
+          if (city != null) parts.add(city.toString());
+          if (addressObj['state'] != null) parts.add(addressObj['state'].toString());
+          if (addressObj['postcode'] != null) parts.add(addressObj['postcode'].toString());
+
+          formattedAddress = parts.isNotEmpty ? parts.join(', ') : (data['display_name'] as String? ?? '');
+        } else {
+          formattedAddress = data['display_name'] as String? ?? '';
+        }
+
+        if (formattedAddress.isNotEmpty && mounted) {
           setState(() {
-            _addressController.text = displayName;
+            _addressController.text = formattedAddress;
           });
         }
       }
