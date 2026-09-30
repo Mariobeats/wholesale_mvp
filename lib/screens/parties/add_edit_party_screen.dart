@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/party_model.dart';
+import '../../models/location_capture.dart';
 import '../../providers/party_provider.dart';
+import '../../providers/location_provider.dart';
+import '../../services/location_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
 
@@ -27,7 +30,7 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
   late TextEditingController _mobileController;
   late TextEditingController _addressController;
 
-  Position? _currentPosition;
+  LocationCaptureModel? _currentCapture;
   bool _isFetchingLocation = false;
   String? _locationError;
 
@@ -42,20 +45,17 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
     _addressController = TextEditingController(text: widget.party?.address ?? '');
 
     if (widget.party?.latitude != null && widget.party?.longitude != null) {
-      _currentPosition = Position(
+      _currentCapture = LocationCaptureModel(
         latitude: widget.party!.latitude!,
         longitude: widget.party!.longitude!,
-        timestamp: DateTime.now(),
-        accuracy: 0,
-        altitude: 0,
-        altitudeAccuracy: 0,
-        heading: 0,
-        headingAccuracy: 0,
-        speed: 0,
-        speedAccuracy: 0,
+        accuracy: widget.party!.gpsAccuracy ?? 4.2,
+        capturedAt: widget.party!.locationCapturedAt ?? DateTime.now(),
+        source: widget.party!.locationSource ?? 'gps',
       );
     } else {
-      _fetchCompulsoryLocation();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _fetchCompulsoryLocation();
+      });
     }
   }
 
@@ -74,112 +74,58 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
       _locationError = null;
     });
 
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+
     try {
-      if (!kIsWeb) {
-        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) {
-          setState(() {
-            _locationError = 'GPS Location service is turned OFF! Please turn ON GPS.';
-            _isFetchingLocation = false;
-          });
-          _showLocationSettingsDialog();
-          return;
-        }
+      final success = await locationProvider.captureShopLocation(
+        maxAccuracyThreshold: LocationService.defaultMaxAccuracyThreshold,
+      );
 
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-          if (permission == LocationPermission.denied) {
-            setState(() {
-              _locationError = 'Location permission denied. GPS access is compulsory.';
-              _isFetchingLocation = false;
-            });
-            return;
-          }
-        }
+      final capture = locationProvider.currentCapture;
 
-        if (permission == LocationPermission.deniedForever) {
-          setState(() {
-            _locationError = 'Location permission permanently denied. Enable in phone settings.';
-            _isFetchingLocation = false;
-          });
-          return;
-        }
-      }
-
-      Position? position;
-      try {
-        // Level 1: Try Live High Accuracy GPS (20 sec timeout)
-        position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 20),
-          ),
-        );
-      } catch (e) {
-        debugPrint('High accuracy GPS timed out/failed: $e. Trying medium accuracy...');
-        try {
-          // Level 2: Fallback to Medium Accuracy (Cellular/Wi-Fi triangulation)
-          position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.medium,
-              timeLimit: Duration(seconds: 10),
-            ),
-          );
-        } catch (e2) {
-          debugPrint('Medium accuracy location failed: $e2. Trying last known cached position...');
-          try {
-            // Level 3: Fallback to Last Known Cached Position
-            position = await Geolocator.getLastKnownPosition();
-          } catch (err) {
-            debugPrint('getLastKnownPosition error: $err');
-          }
-        }
-      }
-
-      if (position == null) {
-        throw Exception('Could not obtain GPS position. Please ensure GPS is ON and move outdoors.');
-      }
-
-      setState(() {
-        _currentPosition = position;
-        _locationError = null;
-        _isFetchingLocation = false;
-      });
-
-      // Auto-fetch human readable address if address is currently blank
-      if (_addressController.text.trim().isEmpty) {
-        await _fetchAddressFromCoordinates(position.latitude, position.longitude);
-      }
-    } catch (e) {
-      debugPrint('GPS Location error: $e');
-      if (kIsWeb) {
-        // Fallback ONLY for Web / Desktop emulator testing
-        final fallbackPosition = Position(
-          latitude: 22.7196,
-          longitude: 75.8577,
-          timestamp: DateTime.now(),
-          accuracy: 10,
-          altitude: 0,
-          altitudeAccuracy: 0,
-          heading: 0,
-          headingAccuracy: 0,
-          speed: 0,
-          speedAccuracy: 0,
-        );
-
+      if (success && capture != null) {
         setState(() {
-          _currentPosition = fallbackPosition;
+          _currentCapture = capture;
           _locationError = null;
           _isFetchingLocation = false;
         });
 
+        // Auto-fetch address if currently empty
         if (_addressController.text.trim().isEmpty) {
-          await _fetchAddressFromCoordinates(fallbackPosition.latitude, fallbackPosition.longitude);
+          await _fetchAddressFromCoordinates(capture.latitude, capture.longitude);
         }
       } else {
         setState(() {
-          _locationError = 'GPS Signal weak or timed out. Turn ON GPS, move outdoors & tap Refresh 🔄';
+          _currentCapture = capture;
+          _locationError = locationProvider.error ??
+              'GPS accuracy is poorer than required 10 m threshold. Move to an open area outside shop & retry.';
+          _isFetchingLocation = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('GPS Capture Error: $e');
+      if (e.toString().contains('LocationServiceDisabledException')) {
+        _showLocationSettingsDialog();
+      }
+      if (kIsWeb) {
+        final fallbackCapture = LocationCaptureModel(
+          latitude: 22.719642,
+          longitude: 75.857712,
+          accuracy: 4.2,
+          capturedAt: DateTime.now(),
+          source: 'web_fallback',
+        );
+        setState(() {
+          _currentCapture = fallbackCapture;
+          _locationError = null;
+          _isFetchingLocation = false;
+        });
+        if (_addressController.text.trim().isEmpty) {
+          await _fetchAddressFromCoordinates(fallbackCapture.latitude, fallbackCapture.longitude);
+        }
+      } else {
+        setState(() {
+          _locationError = 'Could not get reliable GPS location. Turn ON GPS, move outdoors & retry.';
           _isFetchingLocation = false;
         });
       }
@@ -235,7 +181,7 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
           ],
         ),
         content: const Text(
-          'Location service is turned OFF on your phone. GPS Location MUST be turned ON to add a new Party.',
+          'Location service is turned OFF on your phone. GPS Location MUST be turned ON to capture shop location.',
         ),
         actions: [
           TextButton(
@@ -248,7 +194,7 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
             label: const Text('Turn ON GPS'),
             onPressed: () async {
               Navigator.pop(ctx);
-              await Geolocator.openLocationSettings();
+              await LocationService().openLocationSettings();
               _fetchCompulsoryLocation();
             },
           ),
@@ -260,14 +206,14 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
   Future<void> _saveParty() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // MANDATORY GPS LOCATION CHECK
-    if (_currentPosition == null) {
+    // MANDATORY GPS LOCATION CHECK & THRESHOLD VALIDATION
+    if (_currentCapture == null || !_currentCapture!.isAcceptable()) {
       await _fetchCompulsoryLocation();
-      if (_currentPosition == null) {
+      if (_currentCapture == null || !_currentCapture!.isAcceptable()) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_locationError ?? 'GPS Location is COMPULSORY to add a Party! Please turn ON GPS.'),
+            content: Text(_locationError ?? 'Valid GPS location (accuracy <= 10m) is COMPULSORY to add a Party!'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -290,8 +236,11 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
         ownerName: ownerName,
         mobile: mobile,
         address: address,
-        latitude: _currentPosition?.latitude,
-        longitude: _currentPosition?.longitude,
+        latitude: _currentCapture?.latitude,
+        longitude: _currentCapture?.longitude,
+        gpsAccuracy: _currentCapture?.accuracy,
+        locationCapturedAt: _currentCapture?.capturedAt,
+        locationSource: _currentCapture?.source ?? 'gps',
         locationAddress: address,
       );
       success = await partyProvider.updateParty(updated);
@@ -302,8 +251,11 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
         ownerName: ownerName,
         mobile: mobile,
         address: address,
-        latitude: _currentPosition?.latitude,
-        longitude: _currentPosition?.longitude,
+        latitude: _currentCapture?.latitude,
+        longitude: _currentCapture?.longitude,
+        gpsAccuracy: _currentCapture?.accuracy,
+        locationCapturedAt: _currentCapture?.capturedAt,
+        locationSource: _currentCapture?.source ?? 'gps',
         locationAddress: address,
       );
       success = await partyProvider.addParty(newParty);
@@ -335,7 +287,7 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Party' : 'Add Party'),
+        title: Text(isEditing ? 'Edit Shop Party' : 'Add New Shop Party'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
@@ -347,93 +299,9 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Compulsory GPS Location Banner
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(
-                      color: _currentPosition != null
-                          ? AppColors.success.withValues(alpha: 0.1)
-                          : AppColors.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: _currentPosition != null ? AppColors.success : AppColors.error,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _currentPosition != null ? Icons.my_location_rounded : Icons.location_off_rounded,
-                          color: _currentPosition != null ? AppColors.success : AppColors.error,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    _currentPosition != null
-                                        ? 'GPS Pinpoint Captured (Compulsory)'
-                                        : 'GPS Location Required (Compulsory)',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: _currentPosition != null ? AppColors.success : AppColors.error,
-                                    ),
-                                  ),
-                                  if (_currentPosition != null && _currentPosition!.accuracy > 0) ...[
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '(±${_currentPosition!.accuracy.toStringAsFixed(1)}m)',
-                                      style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _isFetchingLocation
-                                    ? 'Fetching GPS & Auto-filling Address...'
-                                    : _currentPosition != null
-                                        ? 'Lat: ${_currentPosition!.latitude.toStringAsFixed(6)}, Long: ${_currentPosition!.longitude.toStringAsFixed(6)}'
-                                        : (_locationError ?? 'Turn ON GPS Location on your phone to add party.'),
-                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_isFetchingLocation)
-                          const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        else ...[
-                          if (_currentPosition != null)
-                            IconButton(
-                              icon: const Icon(Icons.map_rounded, size: 20),
-                              color: AppColors.primary,
-                              tooltip: 'Verify on Google Maps',
-                              onPressed: () async {
-                                final Uri mapsUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${_currentPosition!.latitude},${_currentPosition!.longitude}');
-                                if (await canLaunchUrl(mapsUri)) {
-                                  await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
-                                }
-                              },
-                            ),
-                          IconButton(
-                            icon: const Icon(Icons.refresh_rounded, size: 20),
-                            color: AppColors.primary,
-                            tooltip: 'Refresh GPS & Auto Address',
-                            onPressed: _fetchCompulsoryLocation,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                  // GPS Location Capture Card
+                  _buildGpsCaptureSection(),
+                  const SizedBox(height: 20),
 
                   CustomTextField(
                     controller: _shopNameController,
@@ -447,10 +315,11 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
+
                   CustomTextField(
                     controller: _ownerNameController,
-                    label: 'Owner Full Name',
+                    label: 'Owner Name',
                     hint: 'e.g. Ramesh Gupta',
                     prefixIcon: Icons.person_rounded,
                     validator: (val) {
@@ -460,50 +329,53 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
+
                   CustomTextField(
                     controller: _mobileController,
                     label: 'Mobile Number',
                     hint: 'e.g. 9876543210',
-                    prefixIcon: Icons.phone_rounded,
                     keyboardType: TextInputType.phone,
+                    prefixIcon: Icons.phone_rounded,
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
                         return 'Please enter mobile number';
                       }
                       if (val.trim().length < 10) {
-                        return 'Please enter a valid 10-digit mobile number';
+                        return 'Enter a valid 10-digit mobile number';
                       }
                       return null;
                     },
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
+
                   CustomTextField(
                     controller: _addressController,
-                    label: 'Shop Address (Auto-filled by GPS)',
-                    hint: 'Fetching automatic GPS address...',
+                    label: 'Shop Address',
+                    hint: 'Auto-filled from GPS coordinates (or edit manually)',
+                    maxLines: 2,
                     prefixIcon: Icons.location_on_rounded,
-                    maxLines: 3,
                     suffixIcon: _isFetchingLocation
                         ? const SizedBox(
-                            width: 16,
-                            height: 16,
+                            width: 20,
+                            height: 20,
                             child: Padding(
-                              padding: EdgeInsets.all(12),
+                              padding: EdgeInsets.all(4.0),
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           )
                         : IconButton(
                             icon: const Icon(Icons.my_location_rounded, color: AppColors.primary),
-                            tooltip: 'Auto-fill GPS Address',
+                            tooltip: 'Re-fetch GPS Location & Address',
                             onPressed: _fetchCompulsoryLocation,
                           ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
+
                   CustomButton(
-                    text: isEditing ? 'Update Party' : 'Save Party',
-                    icon: isEditing ? Icons.check_circle_outline : Icons.add_circle_outline,
+                    text: isEditing ? 'Update Party' : 'Add Party with GPS Location',
                     isLoading: partyProvider.isLoading,
+                    icon: isEditing ? Icons.check_circle_outline : Icons.add_circle_outline,
                     onPressed: _saveParty,
                   ),
                 ],
@@ -511,6 +383,209 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildGpsCaptureSection() {
+    final capture = _currentCapture;
+    final isFetching = _isFetchingLocation;
+    final errorMsg = _locationError;
+
+    final isAcceptable = capture != null && capture.isAcceptable();
+
+    Color cardColor;
+    Color borderColor;
+    if (isFetching) {
+      cardColor = AppColors.primary.withValues(alpha: 0.05);
+      borderColor = AppColors.primary;
+    } else if (isAcceptable) {
+      cardColor = AppColors.success.withValues(alpha: 0.08);
+      borderColor = AppColors.success;
+    } else {
+      cardColor = AppColors.error.withValues(alpha: 0.08);
+      borderColor = AppColors.error;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isFetching
+                        ? Icons.gps_fixed_rounded
+                        : (isAcceptable ? Icons.my_location_rounded : Icons.location_off_rounded),
+                    color: isFetching ? AppColors.primary : (isAcceptable ? AppColors.success : AppColors.error),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isFetching
+                        ? '📍 Getting accurate location...'
+                        : (isAcceptable ? '📍 Location Captured' : '📍 Location Capture Required'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: isFetching ? AppColors.primary : (isAcceptable ? AppColors.success : AppColors.error),
+                    ),
+                  ),
+                ],
+              ),
+              if (isFetching)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          if (isFetching) ...[
+            const Text(
+              'Evaluating GPS readings for best accuracy...',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Please remain standing at the shop location.',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary),
+            ),
+          ] else if (capture != null) ...[
+            // Captured Data View
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Latitude: ${capture.latitude.toStringAsFixed(6)}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Longitude: ${capture.longitude.toStringAsFixed(6)}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'GPS Accuracy: ±${capture.accuracy.toStringAsFixed(1)} m',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Captured: ${DateFormat("dd MMM yyyy, hh:mm a").format(capture.capturedAt)}',
+                        style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildAccuracyBadge(capture.accuracyLevel),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final Uri mapsUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${capture.latitude},${capture.longitude}');
+                    if (await canLaunchUrl(mapsUri)) {
+                      await launchUrl(mapsUri, mode: LaunchMode.externalApplication);
+                    }
+                  },
+                  icon: const Icon(Icons.map_rounded, size: 14),
+                  label: const Text('View on Map', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    side: const BorderSide(color: AppColors.primary),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: _fetchCompulsoryLocation,
+                  icon: const Icon(Icons.refresh_rounded, size: 14),
+                  label: const Text('Recapture GPS', style: TextStyle(fontSize: 11)),
+                ),
+              ],
+            ),
+          ],
+
+          if (errorMsg != null && !isFetching) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      errorMsg,
+                      style: const TextStyle(fontSize: 11, color: AppColors.error, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccuracyBadge(GpsAccuracyLevel level) {
+    String label;
+    Color color;
+    switch (level) {
+      case GpsAccuracyLevel.excellent:
+        label = '🟢 Excellent';
+        color = AppColors.success;
+        break;
+      case GpsAccuracyLevel.good:
+        label = '🟢 Good';
+        color = AppColors.success;
+        break;
+      case GpsAccuracyLevel.moderate:
+        label = '🟡 Moderate';
+        color = Colors.amber.shade800;
+        break;
+      case GpsAccuracyLevel.poor:
+        label = '🟠 Poor';
+        color = Colors.orange.shade800;
+        break;
+      case GpsAccuracyLevel.veryPoor:
+        label = '🔴 Very Poor';
+        color = AppColors.error;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
       ),
     );
   }

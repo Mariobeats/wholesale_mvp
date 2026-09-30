@@ -37,8 +37,11 @@ CREATE TABLE IF NOT EXISTS public.parties (
   gstin TEXT,
   state_name TEXT DEFAULT 'Madhya Pradesh',
   state_code TEXT DEFAULT '23',
-  latitude NUMERIC(10, 6),
-  longitude NUMERIC(10, 6),
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  gps_accuracy DOUBLE PRECISION,
+  location_captured_at TIMESTAMPTZ,
+  location_source TEXT DEFAULT 'gps',
   location_address TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

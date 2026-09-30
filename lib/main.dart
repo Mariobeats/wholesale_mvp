@@ -7,6 +7,7 @@ import 'providers/order_provider.dart';
 import 'providers/party_provider.dart';
 import 'providers/product_provider.dart';
 import 'providers/payment_provider.dart';
+import 'providers/location_provider.dart';
 import 'screens/splash_screen.dart';
 import 'services/supabase_service.dart';
 
@@ -29,6 +30,7 @@ class VyaparSetuApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => OrderProvider()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => PaymentProvider()),
+        ChangeNotifierProvider(create: (_) => LocationProvider()),
       ],
       child: MaterialApp(
         title: 'VyaparSetu',

@@ -7,6 +7,7 @@ import '../../providers/cart_provider.dart';
 import '../../providers/order_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../widgets/stock_badge.dart';
+import '../../widgets/shop_verification_card.dart';
 import '../parties/parties_screen.dart';
 
 class CreateOrderScreen extends StatefulWidget {
@@ -293,6 +294,13 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
               ],
             ),
           ),
+
+          // Shop Location Verification Component
+          if (cart.selectedParty != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: ShopVerificationCard(party: cart.selectedParty!),
+            ),
 
           // Step 2: Search Products Bar
           Padding(

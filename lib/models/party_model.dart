@@ -9,6 +9,9 @@ class PartyModel {
   final String stateCode;
   final double? latitude;
   final double? longitude;
+  final double? gpsAccuracy;
+  final DateTime? locationCapturedAt;
+  final String? locationSource;
   final String? locationAddress;
   final DateTime? createdAt;
 
@@ -23,6 +26,9 @@ class PartyModel {
     this.stateCode = '23',
     this.latitude,
     this.longitude,
+    this.gpsAccuracy,
+    this.locationCapturedAt,
+    this.locationSource = 'gps',
     this.locationAddress,
     this.createdAt,
   });
@@ -39,6 +45,11 @@ class PartyModel {
       stateCode: json['state_code'] as String? ?? '23',
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
+      gpsAccuracy: (json['gps_accuracy'] as num?)?.toDouble(),
+      locationCapturedAt: json['location_captured_at'] != null
+          ? DateTime.tryParse(json['location_captured_at'].toString())
+          : null,
+      locationSource: json['location_source'] as String? ?? 'gps',
       locationAddress: json['location_address'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString())
@@ -58,6 +69,9 @@ class PartyModel {
       'state_code': stateCode,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
+      if (gpsAccuracy != null) 'gps_accuracy': gpsAccuracy,
+      if (locationCapturedAt != null) 'location_captured_at': locationCapturedAt!.toIso8601String(),
+      if (locationSource != null) 'location_source': locationSource,
       if (locationAddress != null) 'location_address': locationAddress,
       if (createdAt != null) 'created_at': createdAt!.toIso8601String(),
     };
@@ -74,6 +88,9 @@ class PartyModel {
     String? stateCode,
     double? latitude,
     double? longitude,
+    double? gpsAccuracy,
+    DateTime? locationCapturedAt,
+    String? locationSource,
     String? locationAddress,
     DateTime? createdAt,
   }) {
@@ -88,9 +105,11 @@ class PartyModel {
       stateCode: stateCode ?? this.stateCode,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      gpsAccuracy: gpsAccuracy ?? this.gpsAccuracy,
+      locationCapturedAt: locationCapturedAt ?? this.locationCapturedAt,
+      locationSource: locationSource ?? this.locationSource,
       locationAddress: locationAddress ?? this.locationAddress,
       createdAt: createdAt ?? this.createdAt,
     );
   }
 }
-
